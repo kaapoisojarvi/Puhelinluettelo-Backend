@@ -38,19 +38,9 @@ if(process.argv.length == 3){
 
     person.save().then(result => {
         console. log('added', person.name, "number", person.number, "to Phonebook")
+        mongoose.connection.close()
     })
 }else{
-
+    console.log("invalid amount of arguments")
+    mongoose.connection.close()
 }
-/*
-const person = new Person({
-  id: 1,
-  name: "ASD ASD",
-  number: "123456",
-})
-
-person.save().then(result => {
-  console.log('person saved!')
-  mongoose.connection.close()
-})
-*/
