@@ -5,6 +5,22 @@ const morgan = require('morgan')
 const cors = require('cors')
 const Person = require('./models/person')
 
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+  }
+
+  next(error)
+}
+
 const app = express()
 
 app.use(express.json())
@@ -23,7 +39,9 @@ app.get('/api/persons', (req, res) => {
 })
 
 app.get('/info', (req, res) => {
-  res.send(info)
+  Person.countDocuments({}).then(count => {
+    res.send(`<p>Phonebook has info for ${count} people.</p><p>${new Date()}</p>`)
+  })
 })
 
 app.get('/api/persons/:id', (request, response) => {
@@ -32,7 +50,7 @@ app.get('/api/persons/:id', (request, response) => {
   })
 })
 
-app.delete('/api/persons/:id', (req, res) => {
+app.delete('/api/persons/:id', (req, res, next) => {
   Person.findByIdAndDelete(req.params.id)
     .then(result => {
       res.status(204).end()
@@ -40,12 +58,22 @@ app.delete('/api/persons/:id', (req, res) => {
     .catch(error => next(error))
 })
 
-app.post('/api/persons', (req, res) => {
-  const body = req.body
+app.put('/api/persons/:id', (request, response, next) => {
+  const { name, number } = request.body
 
-  if (Object.keys(req.body).length === 0) {
-    return res.status(400).json({ error: 'content missing' })
-  }
+  Person.findByIdAndUpdate(
+    request.params.id,
+    { name, number },
+    { new: true, runValidators: true, context: 'query' }
+  )
+    .then(updatedPerson => {
+      response.json(updatedPerson)
+    })
+    .catch(error => next(error))
+})
+
+app.post('/api/persons', (req, res, next) => {
+  const body = req.body
 
   const person = new Person({
     name: body.name,
@@ -55,7 +83,11 @@ app.post('/api/persons', (req, res) => {
   person.save().then(savedPerson => {
     res.json(savedPerson)
   })
+    .catch(error => next(error))
 })
+
+app.use(unknownEndpoint)
+app.use(errorHandler)
 
 const PORT = process.env.PORT
 app.listen(PORT, () => {
